@@ -1,0 +1,1 @@
+These are the Discord bots I'm working on for various purposes. Well, there's only one bot for now, but hopefully a veritable zoo of them will eventually carry out some of my mundane tasks. Something like Jarvis would be nice.

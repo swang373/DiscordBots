@@ -46,11 +46,15 @@ class ZillowBot(discord.Client):
         await self.wait_until_ready()
         channel = self.get_channel(settings.DISCORD_CHANNEL)
         while not self.is_closed():
-            async for listing in utils.fetch_new_listings(wait=60):
+            async for listing in utils.fetch_new_listings(wait=settings.WAIT):
                 logger.debug(f'Parsed new listing: {listing}')
-                embed = discord.Embed(title='New Listing', description='I have summarized the information for you below.')
+                embed = discord.Embed(
+                    title=f'A new listing at {listing.address} has appeared!',
+                    description=f'Features: {listing.facts} Price: {listing.price}',
+                    url=listing.url,
+                )
                 embed.set_image(url=listing.image_url)
-                await channel.send(content=None, embed=embed)
+                await channel.send(embed=embed)
 
 
 if __name__ == '__main__':

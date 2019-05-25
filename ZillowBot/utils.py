@@ -41,7 +41,7 @@ email_parser = email.parser.BytesParser(policy=email.policy.default)
 
 ZillowListing = collections.namedtuple(
     typename='ZillowListing',
-    field_names=['image_url'],
+    field_names=['url', 'image_url', 'price', 'facts', 'address'],
 )
 
 
@@ -78,11 +78,30 @@ def parse_message_for_listing(message_data):
     # Decode the HTML content body from its Quoted-Printable (QP) encoding.
     body_decoded = quopri.decodestring(body.as_string())
 
-    # Parse and search the HTML document tree.
-    html_content = BeautifulSoup(markup=body_decoded, features='html.parser')
-    image_url = html_content.find(class_='hero-property-image').get('background')
+    # Parse the HTML document tree.
+    html_doc = BeautifulSoup(markup=body_decoded, features='html.parser')
+    logger.debug('Dumping parsed HTML document tree...')
+    logger.debug(html_doc.prettify())
 
-    listing = ZillowListing(image_url=image_url)
+    # Search the HTML document tree for listing information.
+    # Sometimes the instant update email contains additional suggested
+    # listings apart from the main listing which are not of interest,
+    # which is why the search is limited to the first five tags with
+    # aria-label attributes.
+    listing_info = {}
+    for tag in html_doc.find_all(attrs={'aria-label': True}, limit=5):
+        aria_label = tag.get('aria-label')
+        if aria_label.startswith('Property photo'):
+            listing_info['url'] = tag.a.get('href')
+            listing_info['image_url'] = tag.get('background')
+        elif aria_label.startswith('Property price'):
+            listing_info['price'] = tag.text.strip()
+        elif aria_label.startswith('Property facts'):
+            listing_info['facts'] = tag.text.strip()
+        elif aria_label.startswith('Property address'):
+            listing_info['address'] = tag.text.strip().replace(u'\u200c', '')
+
+    listing = ZillowListing(**listing_info)
 
     return listing
 
@@ -110,7 +129,7 @@ async def fetch_new_listings(wait):
     with imap_connection(**settings.EMAIL_SERVICE) as conn:
 
         # Select the mailbox that receives instant update emails.
-        response, _ = conn.select(settings.MAILBOX, readonly=True)
+        response, _ = conn.select(settings.MAILBOX)
         logger.debug(f'Selecting mailbox {settings.MAILBOX}: {response}')
 
         # Construct the search criteria for instant update emails.
@@ -124,14 +143,14 @@ async def fetch_new_listings(wait):
             msgnums = data[0].split()
             logger.info(f'Searching emails: {response}, found {len(msgnums)} messages')
 
-            # For each instant update email found, fetch and parse it for listing information.
-            # TODO: Mark those instant update emails as SEEN, i.e.
-            # conn.store(msgnum, '-FLAGS', '\\Seen')
+            # For each instant update email found, fetch it, parse it
+            # for listing information, and then mark it as seen.
             if len(msgnums) > 0:
                 for msgnum in msgnums:
                     response, message_data = conn.fetch(msgnum, '(RFC822)')
                     logger.debug(f'Fetching message #{int(msgnum)}: {response}')
                     listing = parse_message_for_listing(message_data)
+                    conn.store(msgnum, '+FLAGS', '\\Seen')
                     yield listing
 
             await asyncio.sleep(wait)

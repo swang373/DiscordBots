@@ -51,8 +51,10 @@ SUBJECT = 'New Listing'
 
 # Discord Bot
 #
-# The bot token and the ID of the text channel where it is
-# allowed to post new listings.
+# The bot token and the ID of the text channel where it
+# posts new listings, as well as the number of seconds
+# to wait between consecutive inbox searches.
 DISCORD_TOKEN = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX' 
 DISCORD_CHANNEL = 000000000000000000
+WAIT = 300
 
