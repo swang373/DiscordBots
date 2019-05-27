@@ -1,17 +1,17 @@
 # MIT License
-# 
+#
 # Copyright (c) 2019 Sean-Jiun Wang
-# 
+#
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in all
 # copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -126,18 +126,20 @@ async def fetch_new_listings(wait):
     wait : numeric
         The number of seconds to wait between consecutive fetches.
     """
-    with imap_connection(**settings.EMAIL_SERVICE) as conn:
+    logger.debug(f'Fetches set to occur every {wait} seconds')
 
-        # Select the mailbox that receives instant update emails.
-        response, _ = conn.select(settings.MAILBOX)
-        logger.debug(f'Selecting mailbox {settings.MAILBOX}: {response}')
+    # Construct the search criteria for instant update emails.
+    criteria = f'(FROM "{settings.SENDER}" SUBJECT "{settings.SUBJECT}" UNSEEN)'
+    logger.debug(f'Using search criteria: {criteria}')
 
-        # Construct the search criteria for instant update emails.
-        criteria = f'(FROM "{settings.SENDER}" SUBJECT "{settings.SUBJECT}" UNSEEN)'
-        logger.debug(f'Using search criteria: {criteria}')
+    while True:
 
-        logger.debug(f'Fetches set to occur every {wait} seconds')
-        while True:
+        with imap_connection(**settings.EMAIL_SERVICE) as conn:
+
+            # Select the mailbox that receives instant update emails.
+            response, _ = conn.select(settings.MAILBOX)
+            logger.debug(f'Selecting mailbox {settings.MAILBOX}: {response}')
+
             # Search for instant update emails.
             response, data = conn.search(None, criteria)
             msgnums = data[0].split()
@@ -145,13 +147,12 @@ async def fetch_new_listings(wait):
 
             # For each instant update email found, fetch it, parse it
             # for listing information, and then mark it as seen.
-            if len(msgnums) > 0:
-                for msgnum in msgnums:
-                    response, message_data = conn.fetch(msgnum, '(RFC822)')
-                    logger.debug(f'Fetching message #{int(msgnum)}: {response}')
-                    listing = parse_message_for_listing(message_data)
-                    conn.store(msgnum, '+FLAGS', '\\Seen')
-                    yield listing
+            for msgnum in msgnums:
+                response, message_data = conn.fetch(msgnum, '(RFC822)')
+                logger.debug(f'Fetching message #{int(msgnum)}: {response}')
+                listing = parse_message_for_listing(message_data)
+                conn.store(msgnum, '+FLAGS', '\\Seen')
+                yield listing
 
-            await asyncio.sleep(wait)
+        await asyncio.sleep(wait)
 
