@@ -1,1 +1,1 @@
-These are the Discord bots I'm working on for various purposes. Well, there's only one bot for now, but hopefully a veritable zoo of them will eventually carry out some of my mundane tasks. Something like Jarvis would be nice.
+In the absence of something like Tony Stark's JARVIS, I'll be creating Discord bots to help me automate various tasks. Feel free to fork this repository and modify them to suit your needs, as your usage may run into cases I haven't tested or behavior I did not need to implement.
