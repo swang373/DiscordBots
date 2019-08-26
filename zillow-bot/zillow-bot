@@ -113,7 +113,7 @@ def imap_connection(host, port, username, password):
     return conn
 
 
-async def fetch_instant_updates(conn, mailbox, wait):
+async def fetch_instant_updates(email_settings, mailbox, wait):
     """Fetch Zillow Instant Update emails.
 
     This is implemented as an asynchronous generator.
@@ -130,7 +130,7 @@ async def fetch_instant_updates(conn, mailbox, wait):
     logger.debug(f'Fetches set to occur every {wait} seconds')
 
     while True:
-        with conn:
+        with imap_connection(**email_settings) as conn:
             # Select the mailbox that receives instant update emails.
             response, _ = conn.select(mailbox)
             logger.debug(f'Selecting mailbox {mailbox}: {response}')
@@ -153,22 +153,22 @@ async def fetch_instant_updates(conn, mailbox, wait):
 
 class ZillowBot(discord.Client):
     """A Discord bot that monitors an email mailbox for Zillow Instant Update emails."""
-    def __init__(self, channel, conn, mailbox, wait):
+    def __init__(self, channel, email_settings, mailbox, wait):
         super().__init__()
-        self.background_task = self.loop.create_task(self.post_new_listings(channel, conn, mailbox, wait))
+        self.background_task = self.loop.create_task(self.post_new_listings(channel, email_settings, mailbox, wait))
 
     async def on_ready(self):
         logger.info(f'Logged in as {self.user.name} with ID {self.user.id}')
 
-    async def post_new_listings(self, channel, conn, mailbox, wait):
+    async def post_new_listings(self, channel, email_settings, mailbox, wait):
         await self.wait_until_ready()
         channel = self.get_channel(channel)
         while not self.is_closed():
-            async for listing in fetch_instant_updates(conn, mailbox, wait):
+            async for listing in fetch_instant_updates(email_settings, mailbox, wait):
                 logger.debug(f'Parsed new listing: {listing}')
                 embed = discord.Embed(
                     title=f'A new listing at {listing.address} has appeared!',
-                    description=f'Features: {listing.facts} Price: {listing.price}',
+                    description=f'Features: {listing.facts}\nPrice: {listing.price}',
                     url=listing.url,
                 )
                 embed.set_image(url=listing.image_url)
@@ -176,16 +176,17 @@ class ZillowBot(discord.Client):
 
 
 @click.command(context_settings={'help_option_names': ['-h', '--help']})
-@click.option('--email', prompt='Email Address', hidden=True)
+@click.option('--username', prompt='Email Address', hidden=True)
 @click.password_option()
 @click.option('--token', prompt='Discord Token', hide_input=True, hidden=True)
-@click.option('--channel', prompt='Discord Channel ID', hide_input=True, hidden=True)
+@click.option('--channel', prompt='Discord Channel ID', hide_input=True, hidden=True, type=int)
 @click.option('--host', default='imap.gmail.com', show_default=True, help="The host name of your email service's IMAP server.")
 @click.option('--port', default=993, show_default=True, help="The port used by your email service's IMAP server.")
 @click.option('--mailbox', default='INBOX', show_default=True, help='The name of the mailbox in which to search for Zillow Instant Update emails.')
-@click.option('--wait', default=300, show_default=True, help='The number of seconds that the bot waits before checking for new emails.')
-@click.option('--debug', is_flag=True, help='Enable debugging messages.')
-def cli(email, password, token, channel, host, port, mailbox, wait, debug):
+@click.option('--wait', default=600, show_default=True, help='The number of seconds that the bot waits before checking for new emails.')
+@click.option('--logfile', help='The path for a log file.')
+@click.option('--debug', is_flag=True, help='Enable debugging output.')
+def cli(username, password, token, channel, host, port, mailbox, wait, logfile, debug):
     """Run a Discord bot that monitors your email for Zillow Instant
     Updates and sends you new listing information.
 
@@ -193,20 +194,21 @@ def cli(email, password, token, channel, host, port, mailbox, wait, debug):
     used to authenticate the bot, and the ID of the text channel where
     the bot will post messages.
     """
-    level = logging.DEBUG if debug else logging.INFO
-    logging.basicConfig(format='%(asctime)s %(levelname)s [%(name)s] %(message)s', level=level)
+    # Configure the logging settings.
+    logging_format = '%(asctime)s %(levelname)s [%(name)s] %(message)s'
+    logging_level= logging.DEBUG if debug else logging.INFO
 
-    # Try to establish a connection with the IMAP server.
-    try:
-        conn = imap_connection(host, port, email, password)
-    except ConnectionRefusedError:
-        click.echo('The connection was refused by the server. Was your login information correct?')
-    except Exception:
-        raise
+    if logfile is not None:
+        logging.basicConfig(filename=logfile, format=logging_format, level=logging_level)
+    else:
+        logging.basicConfig(format=logging_format, level=logging_level)
+
+    # Collect the email settings.
+    email_settings = {'username': username, 'password': password, 'host': host, 'port': port}
 
     # Initialize and run the bot.
-    bot = ZillowBot(channel, conn, mailbox, wait)
-    bot.run()
+    bot = ZillowBot(channel, email_settings, mailbox, wait)
+    bot.run(token)
 
 
 if __name__ == '__main__':
