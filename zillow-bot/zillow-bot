@@ -177,15 +177,15 @@ class ZillowBot(discord.Client):
 
 @click.command(context_settings={'help_option_names': ['-h', '--help']})
 @click.option('--username', prompt='Email Address', hidden=True)
-@click.password_option()
+@click.password_option(hidden=True)
 @click.option('--token', prompt='Discord Token', hide_input=True, hidden=True)
 @click.option('--channel', prompt='Discord Channel ID', hide_input=True, hidden=True, type=int)
 @click.option('--host', default='imap.gmail.com', show_default=True, help="The host name of your email service's IMAP server.")
 @click.option('--port', default=993, show_default=True, help="The port used by your email service's IMAP server.")
 @click.option('--mailbox', default='INBOX', show_default=True, help='The name of the mailbox in which to search for Zillow Instant Update emails.')
 @click.option('--wait', default=600, show_default=True, help='The number of seconds that the bot waits before checking for new emails.')
-@click.option('--logfile', help='The path for a log file.')
-@click.option('--debug', is_flag=True, help='Enable debugging output.')
+@click.option('--logfile', type=click.Path(dir_okay=False, writable=True, resolve_path=True), help='The path to an optional file that captures logging output.')
+@click.option('--debug', is_flag=True, help='Enable debugging messages.')
 def cli(username, password, token, channel, host, port, mailbox, wait, logfile, debug):
     """Run a Discord bot that monitors your email for Zillow Instant
     Updates and sends you new listing information.
@@ -203,10 +203,8 @@ def cli(username, password, token, channel, host, port, mailbox, wait, logfile, 
     else:
         logging.basicConfig(format=logging_format, level=logging_level)
 
-    # Collect the email settings.
+    # Collect the email settings and run the bot.
     email_settings = {'username': username, 'password': password, 'host': host, 'port': port}
-
-    # Initialize and run the bot.
     bot = ZillowBot(channel, email_settings, mailbox, wait)
     bot.run(token)
 
