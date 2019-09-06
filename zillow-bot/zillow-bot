@@ -136,7 +136,7 @@ async def fetch_instant_updates(email_settings, mailbox, wait):
             logger.debug(f'Selecting mailbox {mailbox}: {response}')
 
             # Search for all unseen instant update emails.
-            response, data = conn.search(None, '(FROM "instant-updates@mail.zillow.com" SUBJECT "New Listing" UNSEEN)')
+            response, data = conn.search(None, '(FROM "mail.zillow.com" SUBJECT "New Listing" UNSEEN)')
             msgnums = data[0].split()
             logger.info(f'Searching for emails: {response}, found {len(msgnums)} messages')
 
